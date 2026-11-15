@@ -1,0 +1,5 @@
+{% extends 'base.html' %}{% load static %}
+{% block content %}
+<div class="auth-layout"><aside class="auth-brand"><a class="auth-brand-logo" href="/"><span><img src="{% static 'figma/logo-auth.svg' %}" alt=""></span>StudHub</a><div class="auth-brand-copy"><h2>Навчання — без хаосу</h2><p>Організуйте завдання, відстежуйте прогрес та працюйте разом зі своєю групою.</p><span class="brand-accent"></span><small>Єдиний простір для кожної студентської групи.</small></div><p class="auth-copyright">© {% now 'Y' %} StudHub</p></aside>
+<main id="main" class="auth-main"><div class="auth-form-container"><a class="brand mobile-brand" href="/"><img src="{% static 'figma/logo.svg' %}" alt="">StudHub</a><header><h1>{% block auth_title %}{% endblock %}</h1><p>{% block auth_subtitle %}{% endblock %}</p></header>{% for message in messages %}<div class="notice {{ message.tags }}">{{ message }}</div>{% endfor %}{% block auth_form %}{% endblock %}<div class="auth-footer">{% block auth_footer %}{% endblock %}</div></div></main></div>
+{% endblock %}

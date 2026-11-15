@@ -1,0 +1,8 @@
+{% extends 'account/auth_base.html' %}{% load socialaccount %}
+{% block title %}Реєстрація — StudHub{% endblock %}
+{% block auth_title %}Створити обліковий запис{% endblock %}
+{% block auth_subtitle %}Приєднуйтеся до StudHub за кілька кроків{% endblock %}
+{% block auth_form %}
+<form method="post" action="{% url 'account_signup' %}">{% csrf_token %}{{ form.non_field_errors }}{% for field in form.visible_fields %}{% include 'account/_field.html' %}{% endfor %}{% for field in form.hidden_fields %}{{ field }}{% endfor %}{% if redirect_field_value %}<input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">{% endif %}<button class="button primary full-width" type="submit">Зареєструватися</button></form><div class="auth-divider">АБО</div><form method="post" action="{% provider_login_url 'google' %}">{% csrf_token %}<button class="button full-width" type="submit">Продовжити через Google</button></form>
+{% endblock %}
+{% block auth_footer %}Вже є обліковий запис? <a href="{% url 'account_login' %}{% if redirect_field_value %}?{{ redirect_field_name }}={{ redirect_field_value|urlencode }}{% endif %}">Увійти</a>{% endblock %}

@@ -1,0 +1,4 @@
+{% extends 'account/auth_base.html' %}
+{% block auth_title %}Підтвердження пошти{% endblock %}
+{% block auth_subtitle %}Підтвердьте адресу, щоб отримувати запрошення до груп{% endblock %}
+{% block auth_form %}{% if confirmation and can_confirm %}<p class="notice subtle">Підтвердити адресу {{ confirmation.email_address.email }}?</p><form method="post" action="{% url 'account_confirm_email' confirmation.key %}">{% csrf_token %}{{ redirect_field }}<button class="button primary full-width" type="submit">Підтвердити</button></form>{% else %}<p class="notice error">Посилання недійсне, застаріло або адреса вже належить іншому обліковому запису.</p><a class="button full-width" href="{% url 'account_email' %}">Керувати поштою</a>{% endif %}{% endblock %}

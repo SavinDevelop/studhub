@@ -1,0 +1,1 @@
+{% load ui %}<div class="empty-state"><span class="empty-icon">{% icon icon_name|default:'file' %}</span><h2>{{ title|default:'Поки що нічого немає' }}</h2><p class="muted">{{ description|default:'Нові дані з’являться тут.' }}</p>{% if action_url %}<a class="button primary" href="{{ action_url }}">{{ action_label }}</a>{% endif %}</div>

@@ -1,0 +1,4 @@
+{% extends 'account/auth_base.html' %}
+{% block auth_title %}Перевірте пошту{% endblock %}
+{% block auth_subtitle %}Ми надіслали листа для підтвердження адреси. Перейдіть за посиланням у ньому.{% endblock %}
+{% block auth_form %}<a class="button primary full-width" href="{% url 'students:dashboard' %}">До мого простору</a>{% endblock %}

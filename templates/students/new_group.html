@@ -1,0 +1,4 @@
+{% extends 'students/base.html' %}
+{% block student_content %}
+<a class="back-link" href="{% url 'students:groups' %}">← До моїх груп</a><div class="page-heading"><div><h1>Створити групу</h1><p>Оберіть назву, за якою одногрупники впізнають вашу групу</p></div></div><section class="panel narrow-panel"><form method="post" action="{% url 'students:create_group' %}">{% csrf_token %}{{ form.non_field_errors }}{% for field in form %}{% include 'ui/field.html' %}{% endfor %}<p class="notice subtle">Ви станете старостою групи. Після створення зможете запросити студентів, призначити заступників і налаштувати навчальний план.</p><div class="form-actions"><a class="button" href="{% url 'students:groups' %}">Скасувати</a><button class="button primary" type="submit">Створити групу</button></div></form></section>
+{% endblock %}

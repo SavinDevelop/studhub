@@ -1,0 +1,20 @@
+{% extends 'students/base.html' %}
+{% block student_content %}
+<div class="page-heading">
+  <div><h1>Ролі та дозволи</h1><p>{{ group.name }} · Права застосовуються лише в цій групі</p></div>
+</div>
+<section class="panel" id="permissions">
+  <h2>Права доступу</h2>
+  <p class="muted">Налаштуйте можливості студентів і заступників. Призначити роль учасника можна на сторінці учасників.</p>
+  <div class="two-columns">
+    {% for policy,form in policy_forms %}
+    <form method="post" action="{% url 'students:role_permissions' group.pk policy.role %}">
+      {% csrf_token %}<input type="hidden" name="return" value="permissions">
+      <h3>{{ policy.get_role_display }}</h3>
+      {% for field in form %}<label class="switch-row" for="{{ field.id_for_label }}"><span>{{ field.label }}</span>{{ field }}</label>{% endfor %}
+      <button class="button primary small" type="submit">Зберегти права</button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,5 @@
+{% load ui %}
+{% if workspace.semesters %}<details class="semester-picker dropdown">
+  <summary>{% icon 'semester-calendar' %}<span><small>Семестр</small><strong>{{ workspace.semester.name }}</strong></span>{% if workspace.semester.is_active %}<span class="badge compact">Поточний</span>{% else %}<span class="badge neutral compact">Архів</span>{% endif %}{% icon 'chevron' %}</summary>
+  <div class="dropdown-menu">{% for semester in workspace.semesters %}<a href="{% query semester=semester.pk page=None subject=None %}" {% if workspace.semester.pk == semester.pk %}aria-current="true"{% endif %}>{{ semester.name }} {% if semester.is_active %}<small>Поточний</small>{% endif %}</a>{% endfor %}</div>
+</details>{% endif %}

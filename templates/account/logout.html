@@ -1,0 +1,5 @@
+{% extends 'account/auth_base.html' %}
+{% block auth_title %}Вийти з облікового запису?{% endblock %}
+{% block auth_subtitle %}Ви зможете повернутися до своїх груп після входу{% endblock %}
+{% block auth_form %}<form method="post" action="{% url 'account_logout' %}">{% csrf_token %}<button class="button primary full-width" type="submit">Вийти</button></form>{% endblock %}
+{% block auth_footer %}<a href="{% url 'students:dashboard' %}">Повернутися до огляду</a>{% endblock %}

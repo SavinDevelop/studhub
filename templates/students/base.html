@@ -1,0 +1,58 @@
+{% extends "base.html" %}{% load static ui %}
+{% block content %}
+<div class="workspace" id="workspace">
+  <button type="button" class="sidebar-scrim" data-sidebar-close aria-label="Закрити меню"></button>
+  <aside class="sidebar" aria-label="Бічна навігація">
+    <a href="{% url 'students:dashboard' %}" class="brand"><img src="{% static 'figma/logo.svg' %}" alt="" width="38" height="38"><span>StudHub</span></a>
+    <div class="sidebar-section">
+      <p class="nav-caption">{% if workspace.group %}Простір{% else %}Особистий простір{% endif %}</p>
+      {% if workspace.group %}
+      <details class="workspace-switcher dropdown">
+        <summary><span class="avatar small">{{ workspace.group.name|slice:':1' }}</span><span class="workspace-label"><strong>{{ workspace.group.name }}</strong><small>{{ workspace.role }}</small></span>{% icon 'chevron' %}</summary>
+        <div class="dropdown-menu">
+          {% for membership in workspace.memberships %}<a href="{% url 'students:dashboard' %}?group={{ membership.group_id }}" {% if membership.group_id == workspace.group.pk %}aria-current="true"{% endif %}><span class="avatar tiny">{{ membership.group.name|slice:':1' }}</span>{{ membership.group.name }}</a>{% endfor %}
+          <a href="{% url 'students:groups' %}">{% icon 'users' %} Усі мої групи</a>
+          <a href="{% url 'students:new_group' %}">{% icon 'plus' %} Створити групу</a>
+        </div>
+      </details>
+      {% else %}<p class="muted no-group-note">Поки немає груп</p>{% endif %}
+    </div>
+    {% if workspace.group %}
+    <div class="sidebar-links">
+    <p class="nav-caption main-caption">Основне</p>
+    <nav class="main-nav">
+      {% for item in workspace.nav %}<a href="{{ item.url }}" title="{{ item.label }}" {% if nav == item.key %}aria-current="page"{% endif %}>{% if nav == item.key %}{% icon item.icon active=True %}{% else %}{% icon item.icon %}{% endif %}<span>{{ item.label }}</span></a>{% endfor %}
+    </nav>
+    <nav class="admin-nav" aria-label="Навігація групи"><p class="nav-caption">Група</p>
+      {% for item in workspace.group_nav %}
+      <a href="{{ item.url }}" title="{{ item.label }}" {% if nav == item.key %}aria-current="page"{% endif %}>
+        {% if nav == item.key %}{% icon item.icon active=True %}{% else %}{% icon item.icon %}{% endif %}<span>{{ item.label }}</span>
+      </a>
+      {% endfor %}
+    </nav>
+    </div>
+    {% endif %}
+    <button type="button" class="sidebar-profile profile-trigger" id="profile-trigger"
+            popovertarget="profile-menu" aria-controls="profile-menu" aria-expanded="false" aria-label="Меню профілю">
+      {% include 'ui/avatar.html' with user=request.user %}
+      <span><strong>Мій профіль</strong><small>{{ request.user.email }}</small></span>
+    </button>
+    <nav id="profile-menu" class="profile-menu" popover aria-label="Меню профілю">
+      <a href="{% url 'students:account_settings' %}" {% if nav == 'profile' %}aria-current="page"{% endif %}>{% icon 'settings' %} Налаштування</a>
+      <form method="post" action="{% url 'account_logout' %}">{% csrf_token %}<button type="submit">Вийти з акаунту</button></form>
+    </nav>
+  </aside>
+  <div class="workspace-content">
+    <header class="topbar">
+      <button class="icon-button" type="button" data-sidebar-toggle aria-label="Згорнути бічне меню" aria-expanded="true">{% icon 'collapse' %}</button>
+      <nav class="breadcrumbs" aria-label="Шлях сторінки"><a href="{% url 'students:dashboard' %}">StudHub</a>{% icon 'right' %}<span>{{ page_title|default:'Мій простір' }}</span></nav>
+      <span class="role-label">{{ workspace.role }}</span>
+      <a href="{% url 'notifications:inbox' %}" class="notification-bell icon-button" aria-label="Сповіщення{% if workspace.unread %}: {{ workspace.unread }} непрочитаних{% endif %}">{% icon 'bell' %}{% if workspace.unread %}<span class="notification-count">{{ workspace.unread }}</span>{% endif %}</a>
+    </header>
+    <main class="workspace-main" id="main">
+      {% for message in messages %}<div class="notice {{ message.tags }}" role="status">{{ message }}<button type="button" class="dismiss" data-dismiss aria-label="Закрити">×</button></div>{% endfor %}
+      {% block student_content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}

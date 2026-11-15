@@ -1,0 +1,14 @@
+{% extends 'students/base.html' %}
+{% block student_content %}
+<div class="page-heading">
+  <div><h1>Налаштування групи</h1><p>{{ group.name }} · Загальна інформація про навчальний простір</p></div>
+</div>
+<section class="panel narrow-panel">
+  <h2>Загальні налаштування</h2>
+  <form method="post">
+    {% csrf_token %}{{ form.non_field_errors }}
+    {% include 'ui/field.html' with field=form.name %}
+    <div class="form-actions"><button class="button primary" type="submit">Зберегти зміни</button></div>
+  </form>
+</section>
+{% endblock %}
