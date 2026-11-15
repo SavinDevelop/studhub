@@ -1,0 +1,111 @@
+[project]
+name = "studhub"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Savin Nikita", email = "savinnikita602@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "django>=6.1.2",
+    "django-allauth[socialaccount]>=65.21.1",
+    "pillow>=13.0.0",
+    "python-dotenv>=1.2.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+    "pytest-django>=4.14.0",
+    "ruff>=0.17.3",
+]
+
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "core.settings"
+python_files = ["tests.py", "test_*.py", "*_test.py"]
+testpaths = ["core", "dashboard", "students", "tasks", "academics", "notifications"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+respect-gitignore = true
+extend-exclude = [
+    "migrations",
+    ".venv",
+    "venv",
+    "static",
+    "media",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "N",
+    "UP",
+    "B",
+    "A",
+    "C4",
+    "DJ",
+    "DTZ",
+    "ISC",
+    "ICN",
+    "PIE",
+    "PT",
+    "RET",
+    "SIM",
+    "T20",
+    "TCH",
+    "PTH",
+    "RUF",
+]
+ignore = [
+    "E501",
+    "DJ001",
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "apps"]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Native Ukrainian validation messages include characters that resemble Latin letters.
+"students/*.py" = ["RUF001"]
+"students/management/**/*.py" = ["RUF001"]
+"academics/*.py" = ["RUF001"]
+"notifications/*.py" = ["RUF001"]
+"tasks/*.py" = ["RUF001"]
+"dashboard/**/*.py" = ["RUF001"]
+"core/forms.py" = ["RUF001"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+skip-magic-trailing-comma = false
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.14"
+
+ignore_missing_imports = true
+follow_imports = "silent"
+
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+
+warn_return_any = false
+warn_unused_ignores = false
