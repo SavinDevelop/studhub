@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.urls import path
 
 from . import views
@@ -7,6 +8,7 @@ app_name = "students"
 urlpatterns = [
     path("profile/", views.profile, name="profile"),
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("settings/account/email/", login_required(views.ProfileEmailView.as_view()), name="change_email"),
     path("settings/account/", views.account_settings, name="account_settings"),
     path("groups/", views.groups, name="groups"),
     path("groups/join/", views.join_group, name="join_group"),

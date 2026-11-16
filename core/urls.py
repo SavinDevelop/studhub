@@ -17,12 +17,16 @@ Including another URLconf
 
 from django.conf import settings
 from django.contrib import admin
+from django.contrib.auth.decorators import login_required
 from django.urls import include, path
+
+from students.views import ProfileEmailView
 
 from .views import local_media, view_home
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("accounts/email/", login_required(ProfileEmailView.as_view())),
     path("accounts/", include("allauth.urls")),
     path("", include("students.urls")),
     path("", include("tasks.urls")),

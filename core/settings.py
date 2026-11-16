@@ -123,6 +123,8 @@ SITE_ID = 1
 
 ACCOUNT_LOGIN_METHODS = {"email"}
 
+ACCOUNT_CHANGE_EMAIL = True
+
 ACCOUNT_FORMS = {"login": "core.forms.LoginForm", "signup": "core.forms.SignupForm"}
 
 ACCOUNT_SIGNUP_FIELDS = [

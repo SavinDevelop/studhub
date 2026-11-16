@@ -153,7 +153,7 @@ def test_group_create_page_and_member_view(client, student_factory):
     assert response.resolver_match.view_name == "students:group"
     assertContains(response, "КН-21")
     assertContains(response, reverse("students:group_permissions", args=[response.context["group"].pk]))
-    assertContains(response, "Ролі та дозволи")
+    assertContains(response, "Дозволи")
 
 
 def test_group_information_and_actions_denied_to_outsiders(client, student_factory, group):
@@ -248,3 +248,80 @@ def test_profile_and_group_forms_require_csrf(owner, group, route):
     if route == "invitation":
         kwargs["token"] = create_invitation(owner, group.pk).token
     assert client.post(reverse(f"students:{route}", kwargs=kwargs), {}).status_code == 403
+
+
+def test_profile_email_is_disabled_and_change_uses_dialog(client, student_factory):
+    user = student_factory()
+    client.force_login(user)
+    response = client.get(reverse("students:account_settings"))
+    assertContains(response, f'value="{user.email}" disabled')
+    assertContains(response, 'data-dialog="change-email-dialog"')
+    assertContains(response, 'id="change-email-dialog"')
+    assertContains(response, reverse("students:change_email"))
+    assertRedirects(client.get(reverse("students:change_email")), reverse("students:account_settings"))
+    assertRedirects(client.get(reverse("account_email")), reverse("students:account_settings"))
+
+
+@pytest.mark.parametrize("email", ["invalid", "student0@example.com"])
+def test_invalid_email_change_reopens_modal_without_changing_profile(client, student_factory, email):
+    user = student_factory()
+    client.force_login(user)
+    response = client.post(reverse("students:change_email"), {"email": email, "action_add": ""})
+    assert response.status_code == 200
+    assert response.context["email_form"].errors
+    assert response.context["email_dialog_open"]
+    assertContains(response, "data-auto-open")
+    user.refresh_from_db()
+    assert user.email == "student0@example.com"
+    assert user.student_profile.first_name == "Олена"
+
+
+def test_email_changes_only_after_new_address_is_confirmed(client, student_factory, settings, mailoutbox):
+    from allauth.account.models import EmailAddress, EmailConfirmationHMAC
+
+    settings.MAILERS = {"default": {"BACKEND": "django.core.mail.backends.locmem.EmailBackend"}}
+    user = student_factory()
+    old_email = user.email
+    EmailAddress.objects.create(user=user, email=old_email, primary=True, verified=True)
+    client.force_login(user)
+    response = client.post(reverse("students:change_email"), {"email": "updated-profile@example.com", "action_add": ""})
+    assertRedirects(response, reverse("students:account_settings"))
+    user.refresh_from_db()
+    assert user.email == old_email
+    pending = EmailAddress.objects.get(user=user, email="updated-profile@example.com")
+    assert not pending.verified
+    assert not pending.primary
+    assert any("updated-profile@example.com" in message.to for message in mailoutbox)
+    response = client.get(reverse("students:account_settings"))
+    assert response.context["pending_email"] == pending
+    key = EmailConfirmationHMAC(pending).key
+    response = client.post(reverse("account_confirm_email", args=[key]))
+    assert response.status_code == 302
+    user.refresh_from_db()
+    pending.refresh_from_db()
+    assert user.email == "updated-profile@example.com"
+    assert pending.verified
+    assert pending.primary
+
+
+def test_email_change_requires_login_and_csrf(client, student_factory):
+    url = reverse("students:change_email")
+    assert client.post(url, {"email": "new@example.com", "action_add": ""}).status_code == 302
+    protected = Client(enforce_csrf_checks=True)
+    protected.force_login(student_factory())
+    assert protected.post(url, {"email": "new@example.com", "action_add": ""}).status_code == 403
+
+
+@pytest.mark.parametrize("route", ["account_email", "students:change_email"])
+def test_unverified_email_cannot_be_made_primary_through_legacy_action(client, student_factory, route):
+    from allauth.account.models import EmailAddress
+
+    user = student_factory()
+    old = user.email
+    EmailAddress.objects.create(user=user, email=old, primary=True, verified=False)
+    EmailAddress.objects.create(user=user, email="pending@example.com", verified=False)
+    client.force_login(user)
+    response = client.post(reverse(route), {"email": "pending@example.com", "action_primary": ""})
+    assert response.status_code == 400
+    user.refresh_from_db()
+    assert user.email == old

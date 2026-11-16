@@ -104,8 +104,8 @@ def test_settings_shows_verified_email_and_set_password_for_social_user(client, 
     EmailAddress.objects.create(user=user, email=user.email, primary=True, verified=True)
     client.force_login(user)
     response = client.get(reverse("students:account_settings"))
-    assertContains(response, "Підтверджено")
-    assertContains(response, reverse("account_email"))
+    assertContains(response, "Пошту підтверджено")
+    assertContains(response, reverse("students:change_email"))
     assertContains(response, reverse("account_set_password"))
 
 
@@ -143,7 +143,7 @@ def test_email_management_page_and_add_address(client, student_factory, settings
     user = student_factory()
     client.force_login(user)
     response = client.get(reverse("account_email"))
-    assertContains(response, "Мої адреси")
+    assertRedirects(response, reverse("students:account_settings"))
     response = client.post(reverse("account_email"), {"email": "new-address@example.com", "action_add": ""})
     assert response.status_code == 302
     assert EmailAddress.objects.filter(user=user, email="new-address@example.com", verified=False).exists()

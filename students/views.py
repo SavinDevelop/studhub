@@ -1,18 +1,19 @@
 from functools import wraps
 
 from allauth.account.models import EmailAddress
+from allauth.account.views import EmailView
 from allauth.socialaccount.models import SocialAccount
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
-from django.http import Http404
+from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import redirect, render
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from . import services
-from .forms import GroupForm, ProfileForm, RolePolicyForm
+from .forms import ChangeEmailForm, GroupForm, ProfileForm, RolePolicyForm
 from .models import GroupPermission, GroupRole, JoinRequest
 from .profiles import complete_profile, get_profile
 
@@ -68,20 +69,45 @@ def _profile_response(request, template_name, default_destination):
         else:
             messages.success(request, "Профіль збережено.")
             return redirect(destination)
-    return render(
-        request,
-        template_name,
-        {
-            "nav": "profile",
-            "page_title": "Налаштування",
-            "form": form,
-            "student": student,
-            "next": destination,
-            "has_password": request.user.has_usable_password(),
-            "primary_email": EmailAddress.objects.filter(user=request.user, primary=True).first(),
-            "google_connected": SocialAccount.objects.filter(user=request.user, provider="google").exists(),
-        },
-    )
+    return render(request, template_name, _profile_context(request, student, form, destination))
+
+
+def _profile_context(request, student, form, destination):
+    return {
+        "nav": "profile",
+        "page_title": "Налаштування профілю",
+        "form": form,
+        "student": student,
+        "next": destination,
+        "has_password": request.user.has_usable_password(),
+        "primary_email": EmailAddress.objects.filter(user=request.user, primary=True).first(),
+        "pending_email": EmailAddress.objects.filter(user=request.user, verified=False, primary=False).first(),
+        "email_form": ChangeEmailForm(user=request.user),
+        "google_connected": SocialAccount.objects.filter(user=request.user, provider="google").exists(),
+    }
+
+
+class ProfileEmailView(EmailView):
+    template_name = "students/account_settings.html"
+    form_class = ChangeEmailForm
+    success_url = reverse_lazy("students:account_settings")
+
+    def get(self, request, *args, **kwargs):
+        return redirect("students:account_settings")
+
+    def post(self, request, *args, **kwargs):
+        if "action_primary" in request.POST:
+            return HttpResponseBadRequest("Підтвердьте нову адресу, щоб змінити пошту.")
+        return super().post(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        email_form = context["form"]
+        student = get_profile(self.request.user)
+        profile_form = ProfileForm(initial={"first_name": student.first_name, "last_name": student.last_name})
+        context.update(_profile_context(self.request, student, profile_form, reverse("students:account_settings")))
+        context.update(email_form=email_form, email_dialog_open=True)
+        return context
 
 
 @login_required
@@ -371,7 +397,7 @@ def group_permissions(request, group_id):
         {
             "group": group,
             "nav": "permissions",
-            "page_title": "Ролі та дозволи",
+            "page_title": "Дозволи",
             "policy_forms": [
                 (policy, RolePolicyForm(instance=policy, auto_id=f"id_{policy.role}_%s"))
                 for policy in group.role_policies.all()

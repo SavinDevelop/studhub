@@ -1,5 +1,6 @@
 from typing import ClassVar
 
+from allauth.account.forms import AddEmailForm
 from django import forms
 
 from .models import GroupRolePolicy
@@ -42,3 +43,10 @@ class RolePolicyForm(forms.ModelForm):
 class InvitationForm(forms.Form):
     email = forms.EmailField(label="Email учасника", widget=forms.EmailInput(attrs={"placeholder": "name@example.com"}))
     max_uses = forms.IntegerField(label="Ліміт використань", min_value=1, initial=1, widget=forms.HiddenInput)
+
+
+class ChangeEmailForm(AddEmailForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["email"].label = "Нова електронна пошта"
+        self.fields["email"].widget.attrs.update({"placeholder": "name@example.com", "autocomplete": "email"})
