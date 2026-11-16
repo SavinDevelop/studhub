@@ -49,8 +49,8 @@
       <span class="role-label">{{ workspace.role }}</span>
       <a href="{% url 'notifications:inbox' %}" class="notification-bell icon-button" aria-label="Сповіщення{% if workspace.unread %}: {{ workspace.unread }} непрочитаних{% endif %}">{% icon 'bell' %}{% if workspace.unread %}<span class="notification-count">{{ workspace.unread }}</span>{% endif %}</a>
     </header>
-    <main class="workspace-main" id="main">
-      {% for message in messages %}<div class="notice {{ message.tags }}" role="status">{{ message }}<button type="button" class="dismiss" data-dismiss aria-label="Закрити">×</button></div>{% endfor %}
+    <main class="workspace-main" id="main" tabindex="-1">
+
       {% block student_content %}{% endblock %}
     </main>
   </div>

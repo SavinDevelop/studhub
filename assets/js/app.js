@@ -1,13 +1,102 @@
 (() => {
   'use strict';
-  const toast = (message) => {
-    const element = document.querySelector('.toast');
-    if (!element) return;
-    element.textContent = message;
-    element.hidden = false;
-    clearTimeout(element.dismissTimer);
-    element.dismissTimer = setTimeout(() => { element.hidden = true; }, 3500);
+  const stack = document.querySelector('.toast-stack');
+  const setupToast = (element) => {
+    let timer;
+    let remaining = element.matches('.error, .warning') ? 9000 : 5500;
+    let started = performance.now();
+    let closing = false;
+    const pause = () => { if (timer) { clearTimeout(timer); timer = null; remaining = Math.max(0, remaining - (performance.now() - started)); } };
+    const dismiss = () => {
+      if (closing) return;
+      closing = true;
+      clearTimeout(timer);
+      element.classList.add('is-leaving');
+      setTimeout(() => {
+        if (element.contains(document.activeElement)) document.querySelector('#main')?.focus({preventScroll: true});
+        element.remove();
+        if (!stack.children.length && stack.matches(':popover-open')) stack.hidePopover();
+      }, matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 250);
+    };
+    const resume = () => {
+      clearTimeout(timer);
+      timer = null;
+      if (closing || document.hidden || element.matches(':hover, :focus-within')) return;
+      started = performance.now();
+      timer = setTimeout(dismiss, remaining);
+    };
+    element.querySelector('.toast-close').addEventListener('click', dismiss);
+    element.addEventListener('mouseenter', pause);
+    element.addEventListener('mouseleave', resume);
+    element.addEventListener('focusin', pause);
+    element.addEventListener('focusout', () => requestAnimationFrame(resume));
+    const visibility = () => document.hidden ? pause() : resume();
+    document.addEventListener('visibilitychange', visibility);
+    const observer = new MutationObserver(() => {
+      if (!element.isConnected) { document.removeEventListener('visibilitychange', visibility); observer.disconnect(); }
+    });
+    observer.observe(stack, {childList: true});
+    resume();
   };
+  const toast = (message, level = 'success') => {
+    if (!stack) return;
+    const element = document.createElement('div');
+    element.className = `toast ${level}`;
+    element.setAttribute('role', level === 'error' ? 'alert' : 'status');
+    const text = document.createElement('span');
+    text.className = 'toast-message';
+    text.textContent = message;
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'toast-close';
+    close.setAttribute('aria-label', 'Закрити повідомлення');
+    const closeIcon = document.getElementById('close-icon-template');
+    if (closeIcon) close.append(closeIcon.content.cloneNode(true));
+    element.append(text, close);
+    stack.append(element);
+    stack.showPopover?.();
+    setupToast(element);
+  };
+  if (stack?.children.length) {
+    stack.showPopover?.();
+    stack.querySelectorAll('[data-toast]').forEach(setupToast);
+  }
+  document.querySelectorAll('[data-file-picker]').forEach((picker) => {
+    const input = picker.querySelector('input[type=file]');
+    const name = picker.querySelector('.file-picker-name');
+    const update = () => { name.textContent = Array.from(input.files, file => file.name).join(', ') || 'Файл не вибрано'; };
+    input.addEventListener('change', update);
+    input.form?.addEventListener('reset', () => setTimeout(update, 0));
+    update();
+  });
+  document.querySelectorAll('[data-url-list]').forEach((list) => {
+    const rows = list.querySelector('.url-list-rows');
+    let nextId = rows.children.length;
+    list.querySelector('[data-url-add]').addEventListener('click', () => {
+      const row = rows.firstElementChild.cloneNode(true);
+      const input = row.querySelector('input');
+      const base = input.id.replace(/_\d+$/, '');
+      input.id = `${base}_${nextId++}`;
+      input.value = '';
+      input.setAttribute('aria-label', `${rows.firstElementChild.querySelector('input').getAttribute('aria-label').replace(/ \d+$/, '')} ${nextId}`);
+      rows.append(row);
+      input.focus();
+    });
+    rows.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-url-remove]');
+      if (!button) return;
+      const row = button.closest('.url-list-row');
+      if (rows.children.length === 1) { row.querySelector('input').value = ''; row.querySelector('input').focus(); }
+      else {
+        const focus = row.nextElementSibling || row.previousElementSibling;
+        const firstId = rows.firstElementChild.querySelector('input').id;
+        const isFirst = row === rows.firstElementChild;
+        row.remove();
+        if (isFirst) rows.firstElementChild.querySelector('input').id = firstId;
+        focus.querySelector('input').focus();
+      }
+    });
+  });
   const mobile = window.matchMedia('(max-width: 760px)');
   const toggle = document.querySelector('[data-sidebar-toggle]');
   const syncSidebar = () => {
@@ -39,6 +128,7 @@
     button.setAttribute('aria-expanded', String(!panel.hidden));
     button.addEventListener('click', () => { panel.hidden = !panel.hidden; button.setAttribute('aria-expanded', String(!panel.hidden)); });
   });
+  document.querySelectorAll('dialog[data-auto-open]').forEach((dialog) => dialog.showModal());
   document.querySelectorAll('[data-dialog]').forEach((button) => button.addEventListener('click', () => document.getElementById(button.dataset.dialog)?.showModal()));
   document.querySelectorAll('[data-dialog-close]').forEach((button) => button.addEventListener('click', () => button.closest('dialog')?.close()));
   document.querySelectorAll('dialog').forEach((dialog) => dialog.addEventListener('click', (event) => {
@@ -56,7 +146,7 @@
     const file = input.files[0];
     const preview = document.getElementById(input.dataset.avatarPreview);
     if (!file || !preview) return;
-    if (file.size > 5 * 1024 * 1024) { toast('Фото має бути не більше 5 МБ'); input.value = ''; return; }
+    if (file.size > 5 * 1024 * 1024) { toast('Фото має бути не більше 5 МБ', 'error'); input.value = ''; input.dispatchEvent(new Event('change', {bubbles: true})); return; }
     const img = document.createElement('img');
     img.alt = 'Попередній перегляд аватара';
     const url = URL.createObjectURL(file);
@@ -73,23 +163,6 @@
     document.addEventListener('click', (event) => { if (!details.contains(event.target)) details.open = false; });
     details.addEventListener('keydown', (event) => { if (event.key === 'Escape') { details.open = false; details.querySelector('summary').focus(); } });
   });
-})();
-(() => {
-  const data = document.getElementById('topic-subjects');
-  const subject = document.getElementById('id_subject');
-  const topic = document.getElementById('id_topic');
-  if (!data || !subject || !topic) return;
-  const subjects = JSON.parse(data.textContent);
-  const update = () => {
-    for (const option of topic.options) {
-      const allowed = !option.value || String(subjects[option.value]) === subject.value;
-      option.hidden = !allowed;
-      option.disabled = !allowed;
-    }
-    if (topic.selectedOptions[0]?.disabled) topic.value = '';
-  };
-  subject.addEventListener('change', update);
-  update();
 })();
 (() => {
   const trigger = document.getElementById('profile-trigger');

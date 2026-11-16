@@ -1,4 +1,4 @@
-{% load static %}
+{% load static ui %}
 <!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -7,14 +7,17 @@
   <meta name="theme-color" content="#1b276d">
   <link rel="icon" href="{% static 'favicon.ico' %}">
   <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
-  <link rel="stylesheet" href="{% static 'css/app.css' %}">
-  <script src="{% static 'js/app.js' %}" defer></script>
+  <link rel="stylesheet" href="{% versioned_static 'css/app.css' %}">
+  <script src="{% versioned_static 'js/app.js' %}" defer></script>
   <title>{% block title %}{{ page_title|default:'StudHub' }} — StudHub{% endblock %}</title>
   {% block extra_head %}{% endblock %}
 </head>
 <body>
   <a class="skip-link" href="#main">Перейти до вмісту</a>
   {% block content %}{% endblock %}
-  <div class="toast" role="status" aria-live="polite" hidden></div>
+  <template id="close-icon-template">{% icon 'close' %}</template>
+  <div class="toast-stack" popover="manual" aria-label="Системні повідомлення">
+    {% for message in messages %}<div class="toast {{ message.tags }}" data-toast role="{% if message.level >= 40 %}alert{% else %}status{% endif %}"><span class="toast-message">{{ message }}</span><button type="button" class="toast-close" aria-label="Закрити повідомлення">{% icon 'close' %}</button></div>{% endfor %}
+  </div>
 </body>
 </html>
