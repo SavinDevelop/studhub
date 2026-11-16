@@ -1,0 +1,10 @@
+<div class="field {% if field.errors %}invalid{% endif %}">
+  <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>
+  <div class="file-picker" data-file-picker>
+    {{ field }}
+    <label class="button soft file-picker-button" for="{{ field.id_for_label }}">{% if field.field.widget.allow_multiple_selected %}Обрати файли{% else %}Обрати файл{% endif %}</label>
+    <span class="file-picker-name muted" aria-live="polite">Файл не вибрано</span>
+  </div>
+  {% for error in field.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+  {% if field.help_text %}<p class="helptext">{{ field.help_text }}</p>{% endif %}
+</div>

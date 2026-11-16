@@ -65,12 +65,10 @@ def ui_data(django_user_model):
         "students:dashboard",
         "students:groups",
         "tasks:list",
-        "tasks:table",
         "tasks:create",
         "tasks:calendar",
         "academics:subjects",
         "academics:subject_create",
-        "academics:semesters",
         "academics:semester_create",
         "dashboard:analytics",
         "dashboard:matrix",
@@ -223,7 +221,7 @@ def test_quick_status_returns_to_table_and_persists(client, ui_data):
     response = client.post(
         reverse("tasks:status", args=[ui_data["task"].pk]), {"status": "in_progress", "return": "table"}
     )
-    assert response.url == reverse("tasks:table")
+    assert response.url == reverse("tasks:list") + "?view=table"
     assert TaskProgress.objects.get(task=ui_data["task"], user=ui_data["member"]).status == "in_progress"
 
 
@@ -256,10 +254,10 @@ def test_group_sections_are_separate_pages_with_active_sidebar_links(client, ui_
     assert {item["key"] for item in response.context["workspace"]["group_nav"]} == {
         "members",
         "curriculum",
-        "semesters",
         "settings",
         "permissions",
         "invitations",
+        "analytics",
         "matrix",
     }
     if route == "students:group":
@@ -280,7 +278,7 @@ def test_group_navigation_does_not_expose_owner_only_pages(client, ui_data, role
     client.force_login(member)
     response = client.get(reverse("students:group", args=[ui_data["group"].pk]))
     keys = {item["key"] for item in response.context["workspace"]["group_nav"]}
-    assert keys == ({"members", "curriculum", "semesters", "invitations"} if role == "deputy" else {"members"})
+    assert keys == ({"members", "curriculum", "invitations"} if role == "deputy" else {"members"})
     for route in ("students:group_settings", "students:group_permissions"):
         assert client.get(reverse(route, args=[ui_data["group"].pk])).status_code == 403
 
@@ -321,3 +319,246 @@ def test_new_group_pages_reject_outsiders_and_require_csrf(ui_data):
         client.post(reverse("students:group_settings", args=[ui_data["group"].pk]), {"name": "Підробка"}).status_code
         == 403
     )
+
+
+@pytest.mark.parametrize("mode", ["list", "table"])
+def test_task_display_modes_share_navigation_and_keep_filters(client, ui_data, mode):
+    client.force_login(ui_data["owner"])
+    params = {"q": ui_data["task"].title, "status": "not_started", "sort": "-deadline"}
+    if mode == "table":
+        params["view"] = "table"
+    response = client.get(reverse("tasks:list"), params)
+    assert response.status_code == 200
+    assert response.context["table_mode"] == (mode == "table")
+    assert response.context["nav"] == "tasks"
+    assert response.context["page_title"] == "Завдання"
+    assert "table" not in {item["key"] for item in response.context["workspace"]["nav"]}
+    assert ui_data["task"] in response.context["page"]
+    assert 'aria-label="Вигляд завдань"' in response.content.decode()
+
+
+def test_old_table_url_redirects_to_unified_tasks_with_filters(client, ui_data):
+    client.force_login(ui_data["owner"])
+    response = client.get(reverse("tasks:table"), {"status": "completed", "q": "test"})
+    assert response.status_code == 302
+    assert response.url == reverse("tasks:list") + "?status=completed&q=test&view=table"
+
+
+def test_quick_status_keeps_task_view_and_filters(client, ui_data):
+    client.force_login(ui_data["member"])
+    response = client.post(
+        reverse("tasks:status", args=[ui_data["task"].pk]),
+        {
+            "status": "in_progress",
+            "return": "table",
+            "return_query": "view=table&q=test&sort=-deadline&page=2",
+        },
+    )
+    assert response.url == reverse("tasks:list") + "?view=table&q=test&sort=-deadline&page=2"
+
+
+def test_task_topic_is_typed_reused_and_preserved_on_edit(client, ui_data):
+    from academics.models import Subject, Topic
+
+    client.force_login(ui_data["owner"])
+    payload = {
+        "title": "Завдання з темою",
+        "subject": ui_data["subject"].pk,
+        "topic_name": "  Нова тема  ",
+        "starts_on": "2026-11-01",
+        "deadline": "2026-11-20T12:00",
+        "work_type": "independent",
+        "priority": "normal",
+    }
+    response = client.post(reverse("tasks:create"), payload)
+    assert response.status_code == 302
+    task = Task.objects.get(title=payload["title"])
+    assert task.starts_on.isoformat() == "2026-11-01"
+    assert task.topic.name == "Нова тема"
+    assert task.topic.subject == ui_data["subject"]
+    response = client.get(reverse("tasks:edit", args=[task.pk]))
+    assert response.context["form"]["topic_name"].value() == "Нова тема"
+    assert response.context["form"]["subject"].label == "Предмет"
+    assert 'name="topic_name"' in response.content.decode()
+    assert '<select name="topic"' not in response.content.decode()
+    assert client.post(reverse("tasks:create"), {**payload, "title": "Друге завдання"}).status_code == 302
+    assert Topic.objects.filter(subject=ui_data["subject"], name="Нова тема").count() == 1
+    new_subject = Subject.objects.create(semester=ui_data["semester"], name="Інший предмет", teacher_name="Викладач")
+    payload["subject"] = new_subject.pk
+    assert client.post(reverse("tasks:edit", args=[task.pk]), payload).status_code == 302
+    task.refresh_from_db()
+    assert task.topic.subject == new_subject
+    assert task.topic.name == "Нова тема"
+    payload.update(topic_name="", starts_on="")
+    assert client.post(reverse("tasks:edit", args=[task.pk]), payload).status_code == 302
+    task.refresh_from_db()
+    assert task.topic is None
+    assert task.starts_on is None
+
+
+@pytest.mark.parametrize("start", ["2026-11-21", "invalid-date"])
+def test_task_start_date_validation_does_not_create_task_or_topic(client, ui_data, start):
+    from academics.models import Topic
+
+    client.force_login(ui_data["owner"])
+    response = client.post(
+        reverse("tasks:create"),
+        {
+            "title": "Некоректний початок",
+            "subject": ui_data["subject"].pk,
+            "topic_name": "Не зберігати",
+            "starts_on": start,
+            "deadline": "2026-11-20T12:00",
+            "work_type": "independent",
+            "priority": "normal",
+        },
+    )
+    assert response.status_code == 200
+    assert "starts_on" in response.context["form"].errors
+    assert not Task.objects.filter(title="Некоректний початок").exists()
+    assert not Topic.objects.filter(name="Не зберігати").exists()
+
+
+def test_multiple_task_files_and_link_lists_create_and_edit(client, ui_data, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    client.force_login(ui_data["owner"])
+    payload = {
+        "title": "Кілька матеріалів",
+        "subject": ui_data["subject"].pk,
+        "deadline": "2027-01-20T12:00",
+        "work_type": "independent",
+        "priority": "normal",
+        "attachment_url": ["https://example.com/lecture", "https://example.com/book"],
+        "submission_urls": ["https://example.com/submit", "https://example.com/backup"],
+        "attachment": [SimpleUploadedFile("one.txt", b"one"), SimpleUploadedFile("two.txt", b"two")],
+    }
+    response = client.post(reverse("tasks:create"), payload)
+    assert response.status_code == 302
+    task = Task.objects.get(title=payload["title"])
+    assert task.attachments.exclude(file="").count() == 2
+    assert set(task.attachments.exclude(url="").values_list("url", flat=True)) == set(payload["attachment_url"])
+    assert set(task.submission_links.values_list("url", flat=True)) == set(payload["submission_urls"])
+    response = client.get(reverse("tasks:edit", args=[task.pk]))
+    assert response.context["form"]["attachment_url"].value() == payload["attachment_url"]
+    assert response.context["form"]["submission_urls"].value() == payload["submission_urls"]
+    assert "multiple" in response.content.decode()
+    payload.update(
+        attachment_url=["https://example.com/book", "https://example.com/new"],
+        submission_urls=["https://example.com/backup"],
+    )
+    payload["attachment"] = [SimpleUploadedFile("three.txt", b"three")]
+    response = client.post(reverse("tasks:edit", args=[task.pk]), payload)
+    assert response.status_code == 302
+    assert task.attachments.exclude(file="").count() == 3
+    assert set(task.attachments.exclude(url="").values_list("url", flat=True)) == set(payload["attachment_url"])
+    assert list(task.submission_links.values_list("url", flat=True)) == payload["submission_urls"]
+    payload.pop("attachment")
+    payload.update(attachment_url=[""], submission_urls=[""])
+    assert client.post(reverse("tasks:edit", args=[task.pk]), payload).status_code == 302
+    assert task.attachments.count() == 3
+    assert not task.submission_links.exists()
+
+
+@pytest.mark.parametrize("field", ["attachment_url", "submission_urls"])
+@pytest.mark.parametrize(
+    "links",
+    [["https://example.com/good", "not a url"], ["https://example.com/repeated", "https://example.com/repeated"]],
+)
+def test_each_link_is_validated_and_invalid_values_are_preserved(client, ui_data, field, links):
+    client.force_login(ui_data["owner"])
+    response = client.post(
+        reverse("tasks:create"),
+        {
+            "title": "Некоректні матеріали",
+            "subject": ui_data["subject"].pk,
+            "deadline": "2027-01-20T12:00",
+            "work_type": "independent",
+            "priority": "normal",
+            field: links,
+        },
+    )
+    assert response.status_code == 200
+    assert field in response.context["form"].errors
+    assert response.context["form"][field].value() == links
+    assert not Task.objects.filter(title="Некоректні матеріали").exists()
+
+
+def test_every_uploaded_file_is_validated_before_saving(client, ui_data, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    client.force_login(ui_data["owner"])
+    response = client.post(
+        reverse("tasks:create"),
+        {
+            "title": "Завеликий другий файл",
+            "subject": ui_data["subject"].pk,
+            "deadline": "2027-01-20T12:00",
+            "work_type": "independent",
+            "priority": "normal",
+            "attachment": [
+                SimpleUploadedFile("small.txt", b"small"),
+                SimpleUploadedFile("large.txt", b"x" * (10 * 1024 * 1024 + 1)),
+            ],
+        },
+    )
+    assert response.status_code == 200
+    assert "attachment" in response.context["form"].errors
+    assert not Task.objects.filter(title="Завеликий другий файл").exists()
+    assert not list(tmp_path.rglob("*.txt"))
+
+
+@pytest.mark.parametrize("priority", ["high", "normal", "low"])
+def test_task_priority_choices_are_saved_and_shown(client, ui_data, priority):
+    client.force_login(ui_data["owner"])
+    response = client.post(
+        reverse("tasks:create"),
+        {
+            "title": f"Пріоритет {priority}",
+            "subject": ui_data["subject"].pk,
+            "deadline": "2027-01-20T12:00",
+            "work_type": "independent",
+            "priority": priority,
+        },
+    )
+    assert response.status_code == 302
+    task = Task.objects.get(title=f"Пріоритет {priority}")
+    assert task.priority == priority
+    detail = client.get(reverse("tasks:detail", args=[task.pk]))
+    assert f"priority-{priority}" in detail.content.decode()
+    edit = client.get(reverse("tasks:edit", args=[task.pk]))
+    assert edit.context["form"]["priority"].value() == priority
+    assert list(edit.context["form"].fields["priority"].choices) == [
+        ("normal", "Звичайний"),
+        ("high", "Високий"),
+        ("low", "Низький"),
+    ]
+
+
+@pytest.mark.parametrize("priority", ["low", "normal", "high"])
+def test_task_filters_support_every_priority_in_both_views(client, ui_data, priority):
+    client.force_login(ui_data["owner"])
+    selected = Task.objects.create(
+        subject=ui_data["subject"], title=f"Filter {priority}", priority=priority, deadline=ui_data["task"].deadline
+    )
+    for mode in ("list", "table"):
+        response = client.get(reverse("tasks:list"), {"priority": priority, "view": mode, "sort": "-deadline"})
+        items = list(response.context["page"])
+        assert selected in items
+        assert all(task.priority == priority for task in items)
+        assert 'name="sort" value="-deadline"' in response.content.decode()
+
+
+@pytest.mark.parametrize("field", ["attachment_url", "submission_urls"])
+def test_task_links_accept_uppercase_http_scheme(client, ui_data, field):
+    client.force_login(ui_data["owner"])
+    response = client.post(
+        reverse("tasks:create"),
+        {
+            "title": f"Uppercase {field}",
+            "subject": ui_data["subject"].pk,
+            "deadline": "2027-01-20T12:00",
+            "work_type": "independent",
+            "priority": "normal",
+            field: ["HTTPS://example.com/material"],
+        },
+    )
+    assert response.status_code == 302

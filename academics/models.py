@@ -8,10 +8,10 @@ class Semester(models.Model):
     group = models.ForeignKey("students.StudyGroup", on_delete=models.CASCADE, related_name="semesters")
     name = models.CharField("Назва", max_length=150)
     academic_year_start = models.PositiveSmallIntegerField(
-        "Початок навчального року", validators=[MinValueValidator(2000), MaxValueValidator(2100)]
+        "Початок навчального року", blank=True, null=True, validators=[MinValueValidator(2000), MaxValueValidator(2100)]
     )
     starts_on = models.DateField("Дата початку")
-    ends_on = models.DateField("Дата завершення")
+    ends_on = models.DateField("Дата завершення", blank=True, null=True)
     is_active = models.BooleanField("Поточний семестр", default=False)
 
     class Meta:
@@ -31,7 +31,7 @@ class Semester(models.Model):
 
     @property
     def academic_year(self):
-        return f"{self.academic_year_start} / {self.academic_year_start + 1}"
+        return f"{self.academic_year_start} / {self.academic_year_start + 1}" if self.academic_year_start else ""
 
 
 class Subject(models.Model):

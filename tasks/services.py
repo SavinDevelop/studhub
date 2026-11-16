@@ -16,7 +16,7 @@ from students.services import _require_permission, get_group
 from .models import SubmissionLink, Task, TaskComment, TaskProgress
 
 EDITABLE_FIELDS = frozenset(
-    {"title", "topic", "subject", "deadline", "is_required", "description", "work_type", "priority"}
+    {"title", "topic", "subject", "starts_on", "deadline", "is_required", "description", "work_type", "priority"}
 )
 
 
@@ -55,6 +55,7 @@ def create_task(
     subject,
     deadline,
     topic=None,
+    starts_on=None,
     is_required=True,
     description="",
     submission_links=(),
@@ -68,6 +69,7 @@ def create_task(
             topic=topic,
             subject=subject,
             deadline=deadline,
+            starts_on=starts_on,
             is_required=is_required,
             description=description,
             work_type=work_type,

@@ -107,3 +107,53 @@ def test_academic_permissions_do_not_leak_across_groups(curriculum, django_user_
     with pytest.raises(PermissionDenied):
         activate_semester(deputy, semester.pk)
     assert Subject.objects.count() == 1
+
+
+def test_semester_can_be_created_without_year_or_end_date(client, curriculum):
+    from django.urls import reverse
+
+    owner, group, _ = curriculum
+    client.force_login(owner)
+    response = client.post(reverse("academics:semester_create"), {"name": "Новий семестр", "starts_on": "2027-02-01"})
+    assert response.status_code == 302
+    assert response.url == reverse("academics:curriculum", args=[group.pk])
+    semester = group.semesters.get(name="Новий семестр")
+    assert semester.ends_on is None
+    assert semester.academic_year_start is None
+    assert semester.starts_on == date(2027, 2, 1)
+
+
+def test_semester_end_date_can_be_cleared_but_cannot_precede_start(client, curriculum):
+    from django.urls import reverse
+
+    owner, _, semester = curriculum
+    client.force_login(owner)
+    url = reverse("academics:semester_edit", args=[semester.pk])
+    response = client.post(url, {"name": semester.name, "starts_on": "2026-09-01", "ends_on": "2026-08-01"})
+    assert response.status_code == 200
+    assert response.context["form"].errors
+    semester.refresh_from_db()
+    assert semester.ends_on == date(2026, 12, 31)
+    response = client.post(url, {"name": semester.name, "starts_on": "2026-09-01", "ends_on": ""})
+    assert response.status_code == 302
+    semester.refresh_from_db()
+    assert semester.ends_on is None
+
+
+def test_curriculum_contains_semester_management_and_legacy_page_redirects(client, curriculum):
+    from django.urls import reverse
+
+    owner, group, semester = curriculum
+    client.force_login(owner)
+    url = reverse("academics:curriculum", args=[group.pk])
+    response = client.get(url)
+    assert response.status_code == 200
+    assert semester in response.context["semesters"]
+    assert 'id="semesters"' in response.content.decode()
+    assert all(item["key"] != "semesters" for item in response.context["workspace"]["group_nav"])
+    response = client.get(reverse("academics:semesters"))
+    assert response.status_code == 302
+    assert response.url == url
+    response = client.post(reverse("academics:activate", args=[semester.pk]))
+    assert response.status_code == 302
+    assert response.url == url

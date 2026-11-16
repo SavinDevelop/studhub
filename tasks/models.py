@@ -1,4 +1,5 @@
 import uuid
+from datetime import date, datetime
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -19,6 +20,7 @@ class Task(models.Model):
     class Priority(models.TextChoices):
         NORMAL = "normal", "Звичайний"
         HIGH = "high", "Високий"
+        LOW = "low", "Низький"
 
     title = models.CharField("Назва", max_length=255)
     legacy_topic = models.CharField("Тема до перенесення", max_length=255, blank=True)
@@ -32,6 +34,7 @@ class Task(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_tasks"
     )
+    starts_on = models.DateField("Дата початку", blank=True, null=True)
     deadline = models.DateTimeField("Дедлайн", db_index=True)
     is_required = models.BooleanField("Обов'язкове", default=True)
     description = models.TextField("Опис", blank=True)
@@ -52,6 +55,13 @@ class Task(models.Model):
             raise ValidationError({"subject": "Оберіть предмет."})
         if self.topic_id and self.topic.subject_id != self.subject_id:
             raise ValidationError({"topic": "Тема повинна належати предмету завдання."})
+
+        if isinstance(self.starts_on, date) and isinstance(self.deadline, datetime):
+            from django.utils import timezone
+
+            end = timezone.localtime(self.deadline) if timezone.is_aware(self.deadline) else self.deadline
+            if self.starts_on > end.date():
+                raise ValidationError({"starts_on": "Дата початку не може бути пізнішою за дедлайн."})
 
     @property
     def group(self):

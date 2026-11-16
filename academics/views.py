@@ -57,7 +57,13 @@ def curriculum(request, group_id):
     return render(
         request,
         "academics/curriculum.html",
-        {"subjects": _subjects(request), "course_form": form, "nav": "curriculum", "page_title": "Навчальний план"},
+        {
+            "subjects": _subjects(request),
+            "semesters": group.semesters.annotate(subject_count=Count("subjects")),
+            "course_form": form,
+            "nav": "curriculum",
+            "page_title": "Навчальний план",
+        },
     )
 
 
@@ -111,15 +117,7 @@ def semesters(request):
     if workspace["group"] is None:
         return redirect("students:groups")
     _require_permission(request.user, workspace["group"], GroupPermission.MANAGE_ACADEMICS)
-    return render(
-        request,
-        "academics/semesters.html",
-        {
-            "semesters": Semester.objects.filter(group=workspace["group"]).annotate(subject_count=Count("subjects")),
-            "page_title": "Керування семестрами",
-            "nav": "semesters",
-        },
-    )
+    return redirect("academics:curriculum", group_id=workspace["group"].pk)
 
 
 @login_required
@@ -146,11 +144,11 @@ def semester_editor(request, pk=None):
             form.add_error(None, exc)
         else:
             messages.success(request, "Семестр збережено.")
-            return redirect("academics:semesters")
+            return redirect("academics:curriculum", group_id=group.pk)
     return render(
         request,
         "academics/semester_form.html",
-        {"form": form, "nav": "semesters", "page_title": "Редагувати період" if pk else "Новий семестр"},
+        {"form": form, "nav": "curriculum", "page_title": "Редагувати період" if pk else "Новий семестр"},
     )
 
 
@@ -161,7 +159,7 @@ def activate(request, pk):
     semester = get_object_or_404(Semester, pk=pk, group=group)
     services.activate_semester(request.user, semester.pk)
     messages.success(request, "Активний семестр змінено.")
-    return redirect("academics:semesters")
+    return redirect("academics:curriculum", group_id=group.pk)
 
 
 @login_required

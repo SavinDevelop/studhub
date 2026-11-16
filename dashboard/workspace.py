@@ -61,13 +61,10 @@ def workspace_for(request):
     )
     nav = [
         ("overview", "Огляд", "students:dashboard", "overview"),
-        ("tasks", "Мої завдання", "tasks:list", "tasks"),
+        ("tasks", "Завдання", "tasks:list", "tasks"),
         ("calendar", "Календар", "tasks:calendar", "calendar"),
         ("subjects", "Предмети", "academics:subjects", "subjects"),
     ]
-    if permissions[GroupPermission.VIEW_ANALYTICS]:
-        nav.append(("analytics", "Аналітика", "dashboard:analytics", "analytics"))
-    nav.append(("table", "Таблиця", "tasks:table", "tasks"))
     group_nav = []
     if group:
         group_nav.append(
@@ -81,12 +78,6 @@ def workspace_for(request):
                         "label": "Навчальний план",
                         "url": reverse("academics:curriculum", args=[group.pk]),
                         "icon": "subjects",
-                    },
-                    {
-                        "key": "semesters",
-                        "label": "Семестри",
-                        "url": reverse("academics:semesters"),
-                        "icon": "calendar",
                     },
                 ]
             )
@@ -103,7 +94,7 @@ def workspace_for(request):
             group_nav.append(
                 {
                     "key": "permissions",
-                    "label": "Ролі та дозволи",
+                    "label": "Дозволи",
                     "url": reverse("students:group_permissions", args=[group.pk]),
                     "icon": "users",
                 }
@@ -114,10 +105,13 @@ def workspace_for(request):
                     "key": "invitations",
                     "label": "Запрошення",
                     "url": reverse("students:invitations", args=[group.pk]),
-                    "icon": "imgLucideMail1",
+                    "icon": "mail",
                 }
             )
         if permissions[GroupPermission.VIEW_ANALYTICS]:
+            group_nav.append(
+                {"key": "analytics", "label": "Аналітика", "url": reverse("dashboard:analytics"), "icon": "analytics"}
+            )
             group_nav.append(
                 {"key": "matrix", "label": "Матриця виконання", "url": reverse("dashboard:matrix"), "icon": "analytics"}
             )

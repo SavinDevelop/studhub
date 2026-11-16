@@ -1,0 +1,7 @@
+{% load ui %}
+<div class="url-list" data-url-list>
+  <div class="url-list-rows">
+    {% for value in values %}<div class="url-list-row"><input type="url" name="{{ widget.name }}" id="{{ widget.attrs.id }}_{{ forloop.counter0 }}" value="{{ value }}" maxlength="2048" placeholder="https://…" aria-label="{{ widget.attrs.url_label }} {{ forloop.counter }}"><button class="icon-button" type="button" data-url-remove aria-label="Видалити посилання">{% icon 'close' %}</button></div>{% endfor %}
+  </div>
+  <button class="button primary small" type="button" data-url-add>{% icon 'plus' %}<span>Додати посилання</span></button>
+</div>

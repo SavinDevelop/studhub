@@ -35,7 +35,7 @@ class SubjectForm(forms.ModelForm):
 class SemesterForm(forms.ModelForm):
     class Meta:
         model = Semester
-        fields = ("name", "academic_year_start", "starts_on", "ends_on")
+        fields = ("name", "starts_on", "ends_on")
         widgets: ClassVar = {
             "starts_on": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "ends_on": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),

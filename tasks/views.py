@@ -8,12 +8,13 @@ from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from academics.models import Topic
 from dashboard.selectors import semester_tasks, visible_tasks
 from dashboard.workspace import workspace_for
 from notifications.models import Notification
@@ -22,7 +23,7 @@ from students.services import _require_permission
 
 from . import services
 from .forms import TaskForm
-from .models import TaskAttachment, TaskProgress
+from .models import Task, TaskAttachment, TaskProgress
 
 
 def _task(request, pk):
@@ -49,8 +50,8 @@ def _filtered_tasks(request):
         if not subject.isdecimal():
             raise Http404
         tasks = tasks.filter(subject_id=subject)
-    if request.GET.get("priority") == "high":
-        tasks = tasks.filter(priority="high")
+    if request.GET.get("priority") in Task.Priority.values:
+        tasks = tasks.filter(priority=request.GET["priority"])
     if request.GET.get("required") == "1":
         tasks = tasks.filter(is_required=True)
     if request.GET.get("overdue") == "1":
@@ -61,6 +62,11 @@ def _filtered_tasks(request):
 
 @login_required
 def task_list(request, table=False):
+    if table:
+        params = request.GET.copy()
+        params["view"] = "table"
+        return redirect(reverse("tasks:list") + "?" + params.urlencode())
+    table = request.GET.get("view") == "table"
     workspace = workspace_for(request)
     tasks = _filtered_tasks(request)
     subjects = workspace["semester"].subjects.all() if workspace["semester"] else []
@@ -72,9 +78,10 @@ def task_list(request, table=False):
             "page": page,
             "subjects": subjects,
             "statuses": TaskProgress.Status.choices,
+            "priorities": Task.Priority.choices,
             "table_mode": table,
-            "nav": "table" if table else "tasks",
-            "page_title": "Таблиця завдань" if table else "Мої завдання",
+            "nav": "tasks",
+            "page_title": "Завдання",
         },
     )
 
@@ -115,22 +122,31 @@ def task_editor(request, pk=None):
     if request.method == "POST" and form.is_valid():
         fields = {key: form.cleaned_data[key] for key in form.Meta.fields}
         try:
-            if task:
-                task = services.update_task(task.pk, submission_links=form.cleaned_data["submission_urls"], **fields)
-            else:
-                task = services.create_group_task(
-                    request.user, submission_links=form.cleaned_data["submission_urls"], **fields
-                )
-            upload = form.cleaned_data["attachment"]
-            if upload:
-                TaskAttachment.objects.create(task=task, name=upload.name[:255], file=upload, uploaded_by=request.user)
-            if form.cleaned_data["attachment_url"]:
-                TaskAttachment.objects.create(
-                    task=task,
-                    name="Матеріали до завдання",
-                    url=form.cleaned_data["attachment_url"],
-                    uploaded_by=request.user,
-                )
+            with transaction.atomic():
+                name = form.cleaned_data["topic_name"]
+                fields["topic"] = Topic.objects.get_or_create(subject=fields["subject"], name=name)[0] if name else None
+                if task:
+                    task = services.update_task(
+                        task.pk, submission_links=form.cleaned_data["submission_urls"], **fields
+                    )
+                else:
+                    task = services.create_group_task(
+                        request.user, submission_links=form.cleaned_data["submission_urls"], **fields
+                    )
+                for upload in form.cleaned_data["attachment"]:
+                    TaskAttachment.objects.create(
+                        task=task, name=upload.name[:255], file=upload, uploaded_by=request.user
+                    )
+                urls = form.cleaned_data["attachment_url"]
+                task.attachments.exclude(url="").exclude(url__in=urls).delete()
+                for url in urls:
+                    if not task.attachments.filter(url=url).exists():
+                        TaskAttachment.objects.create(
+                            task=task,
+                            name="Матеріали до завдання",
+                            url=url,
+                            uploaded_by=request.user,
+                        )
         except ValidationError as exc:
             form.add_error(None, exc)
         else:
@@ -158,7 +174,6 @@ def task_editor(request, pk=None):
             "task": task,
             "nav": "tasks",
             "page_title": "Редагування завдання" if task else "Нове завдання",
-            "topic_subjects": dict(form.fields["topic"].queryset.values_list("pk", "subject_id")),
         },
     )
 
@@ -174,7 +189,13 @@ def task_status(request, pk):
     else:
         messages.success(request, "Статус завдання оновлено.")
     if request.POST.get("return") in {"list", "table"}:
-        return redirect("tasks:" + request.POST["return"])
+        params = QueryDict(request.POST.get("return_query", "")).copy()
+        if request.POST["return"] == "table":
+            params["view"] = "table"
+        else:
+            params.pop("view", None)
+        query = params.urlencode()
+        return redirect(reverse("tasks:list") + ("?" + query if query else ""))
     return redirect("tasks:detail", pk=task.pk)
 
 
